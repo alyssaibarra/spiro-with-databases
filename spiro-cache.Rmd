@@ -1,0 +1,94 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+This needs the following packages installed:
+```{r install-packages}
+install.packages(c(
+  "DBI",
+  "RSQLite",
+  "dplyr",
+  "dbplyr",
+  "ggplot2",
+  "knitr",
+  "rmarkdown"
+))
+``` 
+
+```{r load-packages}
+library(DBI)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(glue)
+library(lubridate)
+```
+
+
+Old spirograph code
+```{r old-spirograph}
+spiro <- function(n1,n2,n3) {
+  t <- seq(0,1,length.out=1000)
+  z <- exp(1i*2*pi*n1*t) + exp(1i*2*pi*n2*t) + exp(1i*2*pi*n3*t)
+  result <- tibble(x=Re(z),y=Im(z))
+  return (result)
+}
+```
+```{r run-spirograph}
+
+run_0 <- spiro(0, 0, 0)
+
+```
+For this example, we will use an "in-memory" database:
+```{r create-in-memory-database}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+```
+
+```{r write-dataframe-to-database}
+##HW add column with date-time field
+
+cache_results <- tribble(
+  ~n1, ~n2, ~n3, ~date,
+  0, 0, 0, mdy("03-05-2021")
+)
+
+copy_to(con, cache_results, name="cache", temporary=FALSE, overwrite=TRUE)
+
+cache_results
+```
+
+```{r query-database}
+
+spiro_query <- dbGetQuery(con, "SELECT * FROM `cache`")
+spiro_query
+```
+
+
+```{r}
+SQLstring <- "SELECT * FROM `cache` WHERE date > 2021-03-02 "
+
+spiro_query2 <- dbGetQuery(con, SQLstring)
+spiro_query2
+
+```
+
+```{r function-check-database}
+spiro2 <- function(n1,n2,n3) {
+  spiro_query <- dbGetQuery(con, "SELECT COUNT(*) FROM `cache` 
+                            WHERE ((`n1` = $n1) AND (`n2` = $n2) AND (`n3` = $n3))", 
+                            params=list(n1=n1, n2=n2, n3=n3))
+  
+  if (spiro_query$`COUNT(*)`== 0) {
+    print(glue("calculating spirograph for n1 = {n1}, n2 = {n2}, n3 = {n3}"))
+  }
+  else {
+    print(glue("found cached spirograph for n1 = {n1}, n2 = {n2}, n3 = {n3}"))
+  }
+    
+  t <- seq(0,1,length.out=1000)
+  z <- exp(1i*2*pi*n1*t) + exp(1i*2*pi*n2*t) + exp(1i*2*pi*n3*t)
+  result <- tibble(x=Re(z),y=Im(z))
+  return (result)
+}
+
+```
